@@ -66,4 +66,15 @@ jobsLost2 <- list(
 
 
 
+library(forecast)
+
+
+c(2, 4, 6, 8, 10, 12) %>% 
+  auto.arima() %>% 
+  forecast(1) %>% 
+  data.frame()
+
+
+
+
 
