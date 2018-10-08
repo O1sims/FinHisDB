@@ -15,28 +15,34 @@ from bs4 import BeautifulSoup
 USER_AGENT = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:24.0) Gecko/20100101 Firefox/24.0"
 
 JOURNAL_DICT = {
-    "financial history review": "https://www.cambridge.org/core/journals/financial-history-review"
+    "financial history review": "https://www.cambridge.org/core/journals/financial-history-review",
+    "business history review": "https://www.cambridge.org/core/journals/business-history-review",
+    "journal of finance": "https://onlinelibrary.wiley.com/action/doSearch?SeriesKey=15406261&sortBy=Earliest&pageSize=20&startPage={}"
 }
 
-ISSUE_LINK = "https://www.cambridge.org/core/journals/financial-history-review/core/journals/financial-history-review/issue/232EA68F292ECF1F1991E512C237C8DC"
 
-
-def get_journal_pages(journal, all_issue_path="/all-issues"):
+def get_web_page_soup(journal, path):
     url = '{}{}'.format(
-        JOURNAL_DICT[journal],
-        all_issue_path)
+        JOURNAL_DICT[journal], path)
     request_page = requests.get(
         url=url,
         headers={'User-Agent': USER_AGENT})
+    page_soup = BeautifulSoup(request_page.content, "lxml")
+    return page_soup
+
+
+def get_journal_pages(journal, all_issue_path="/all-issues"):
+    page_soup = get_web_page_soup(
+        journal=journal,
+        path=all_issue_path)
     hyperlinks = []
-    journal_page_soup = BeautifulSoup(request_page.content, "lxml")
-    for issue_block in journal_page_soup.find_all("li", {"class", "accordion-navigation"}):
+    for issue_block in page_soup.find_all("li", {"class", "accordion-navigation"}):
         for word in str(issue_block).split():
             if '/issue/' in word:
                 hyperlink = clean_hyperlink(hyperlink=word)
                 hyperlinks.append(hyperlink)
     author_details = {}
-    for i in range(len(hyperlinks[1:3])):
+    for i in range(len(hyperlinks[1:2])):
         print "Collecting articles from journal {}/{}".format(
                 i+1, len(hyperlinks))
         article_details = get_article_details(
@@ -112,7 +118,7 @@ def parse_address(soup):
 
 def parse_email(article_soup):
     article_str = str(article_soup)
-    k = re.search('mailto:(.*)\"', article_str)
+    k = re.search('mailto:(.*)"', article_str)
     if k is None:
         return None
     else:
@@ -133,3 +139,44 @@ def flatten_author_details(author_details, email_only=False):
             else:
                 d.append(a)
     return d
+
+
+
+class ScrapeWiley():
+    def init():
+        pass
+    
+    def search_journal(journal, page):
+        url = JOURNAL_DICT[journal].format(page)
+        request_page = requests.get(
+                url=url,
+                headers={'User-Agent': USER_AGENT})
+        search_page_soup = BeautifulSoup(request_page.content, "lxml")
+        k = search_page_soup.find_all("div", {"class": "item__body"})
+        for l in k:
+            if 'rapid' in l.find("span", {"class": "meta__type"}).get_text().lower() or \
+                'article' in l.find("span", {"class": "meta__type"}).get_text().lower():
+                    title = l.find("a", {"id": "publication_title"}).get_text()
+                    raw_abstract = l.find("div", {"class": "article-section__content abstractlang_en main"})
+                    abstract = raw_abstract.get_text().strip().split('\n')[0]
+                    doi_url = l.find("a", {"id": "publication_title"}).attrs['href']
+                    raw_authors = l.find_all("span", {"class": "hlFld-ContribAuthor"})
+                    authors = []
+                    for author in raw_authors:
+                        authors.append(author.get_text().title())
+                    
+
+
+
+
+
+BASE_URL = "https://onlinelibrary.wiley.com"
+request_page = requests.get(url="https://onlinelibrary.wiley.com/doi/10.1111/jofi.12728", headers={'User-Agent': USER_AGENT})
+page_soup = BeautifulSoup(request_page.content, "lxml")
+
+
+match = re.findall(r'[\w\.-]+@[\w\.-]+', str(page_soup))
+list(set(match))
+
+
+a = "author-info accordion-tabbed__content"
