@@ -9,6 +9,7 @@ Created on Tue Oct  2 11:03:12 2018
 import re
 import requests
 
+from datetime import datetime
 from bs4 import BeautifulSoup
 
 
@@ -206,6 +207,12 @@ class ScrapeWiley():
             return vol_iss.get_text()
     
     
+    def parse_publication_date(page_soup):
+        pub_date = page_soup.find("span", {"class": "epub-date"}).get_text()
+        date_time = datetime.strptime(pub_date, '%d %B %Y')
+        return date_time
+    
+    
     def scrape_article(hyperlink):
         url = '{}{}'.format(BASE_URL, hyperlink)
         request_page = requests.get(
@@ -215,12 +222,16 @@ class ScrapeWiley():
         article_details = {
             'authorInfo': parse_author_info(page_soup=article_page_soup),
             'emails': parse_emails(page_soup=article_page_soup),
-            'volume': parse_volume_issue(page_soup=article_page_soup)
+            'volume': parse_volume_issue(page_soup=article_page_soup),
+            'published': parse_publication_date(page_soup=article_page_soup)
         }
         return article_details
     
 
 
+journal = 'journal of finance'
+author_details = []
+for i in range(100):
+    author_details += search_journal(journal, i)
 
 
-page_soup.find("p", {"class": "volume-issue"})
