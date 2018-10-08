@@ -142,6 +142,9 @@ def flatten_author_details(author_details, email_only=False):
 
 
 
+BASE_URL = "https://onlinelibrary.wiley.com"
+
+
 class ScrapeWiley():
     def init():
         pass
@@ -153,10 +156,10 @@ class ScrapeWiley():
                 headers={'User-Agent': USER_AGENT})
         search_page_soup = BeautifulSoup(request_page.content, "lxml")
         k = search_page_soup.find_all("div", {"class": "item__body"})
+        author_details = []
         for l in k:
             if 'rapid' in l.find("span", {"class": "meta__type"}).get_text().lower() or \
                 'article' in l.find("span", {"class": "meta__type"}).get_text().lower():
-                    title = l.find("a", {"id": "publication_title"}).get_text()
                     raw_abstract = l.find("div", {"class": "article-section__content abstractlang_en main"})
                     abstract = raw_abstract.get_text().strip().split('\n')[0]
                     doi_url = l.find("a", {"id": "publication_title"}).attrs['href']
@@ -164,19 +167,60 @@ class ScrapeWiley():
                     authors = []
                     for author in raw_authors:
                         authors.append(author.get_text().title())
+                    article_details = scrape_article(hyperlink=doi_url)
+                    author_details.append(
+                        {
+                            'title': l.find("a", {"id": "publication_title"}).get_text(),
+                            'abstract': abstract,
+                            'doiUrl': doi_url,
+                            'authors': authors,
+                            'articleDetails': article_details
+                        })
+        return author_details                    
                     
+                        
+    def parse_author_info(page_soup):
+        raw_author_infos = page_soup.find_all("div", {"class": "author-info accordion-tabbed__content"})
+        for info in raw_author_infos:
+            clean_author_info = info.get_text()
+            if len(clean_author_info) > 100:
+                return clean_author_info
+            
+    def parse_emails(page_soup):
+        match = re.findall(r'[\w\.-]+@[\w\.-]+', str(page_soup))
+        emails = list(set(match))
+        if emails == []:
+            return None
+        else:
+            return emails
+        
+    def parse_volume_issue(page_soup):
+        vol_iss = page_soup.find("p", {"class": "volume-issue"})
+        if vol_iss is None:
+            cover_label = page_soup.find("p", {"class": "cover-label"})
+            if cover_label is None:
+                return None
+            else:
+                return cover_label.get_text()
+        else:
+            return vol_iss.get_text()
+    
+    
+    def scrape_article(hyperlink):
+        url = '{}{}'.format(BASE_URL, hyperlink)
+        request_page = requests.get(
+                url=url,
+                headers={'User-Agent': USER_AGENT})
+        article_page_soup = BeautifulSoup(request_page.content, "lxml")
+        article_details = {
+            'authorInfo': parse_author_info(page_soup=article_page_soup),
+            'emails': parse_emails(page_soup=article_page_soup),
+            'volume': parse_volume_issue(page_soup=article_page_soup)
+        }
+        return article_details
+    
 
 
 
 
-
-BASE_URL = "https://onlinelibrary.wiley.com"
-request_page = requests.get(url="https://onlinelibrary.wiley.com/doi/10.1111/jofi.12728", headers={'User-Agent': USER_AGENT})
-page_soup = BeautifulSoup(request_page.content, "lxml")
-
-
-match = re.findall(r'[\w\.-]+@[\w\.-]+', str(page_soup))
-list(set(match))
-
-
-a = "author-info accordion-tabbed__content"
+page_soup.find("p", {"class": "volume-issue"})
