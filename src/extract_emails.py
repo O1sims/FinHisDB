@@ -162,9 +162,8 @@ class ScrapeWiley():
             if 'rapid' in l.find("span", {"class": "meta__type"}).get_text().lower() or \
                 'article' in l.find("span", {"class": "meta__type"}).get_text().lower():
                     doi_url = l.find("a", {"id": "publication_title"}).attrs['href']
-                    raw_authors = l.find_all("span", {"class": "hlFld-ContribAuthor"})
                     authors = []
-                    for author in raw_authors:
+                    for author in l.find_all("span", {"class": "hlFld-ContribAuthor"}):
                         authors.append(author.get_text().title())
                     article_details = scrape_article(hyperlink=doi_url)
                     author_details.append(
