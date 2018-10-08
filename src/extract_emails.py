@@ -21,10 +21,10 @@ JOURNAL_DICT = {
 ISSUE_LINK = "https://www.cambridge.org/core/journals/financial-history-review/core/journals/financial-history-review/issue/232EA68F292ECF1F1991E512C237C8DC"
 
 
-def get_journal_pages(journal):
+def get_journal_pages(journal, all_issue_path="/all-issues"):
     url = '{}{}'.format(
         JOURNAL_DICT[journal],
-        "/all-issues")
+        all_issue_path)
     request_page = requests.get(
         url=url,
         headers={'User-Agent': USER_AGENT})
@@ -35,12 +35,14 @@ def get_journal_pages(journal):
             if '/issue/' in word:
                 hyperlink = clean_hyperlink(hyperlink=word)
                 hyperlinks.append(hyperlink)
-    author_details = []
-    for h in hyperlinks:
+    author_details = {}
+    for i in range(len(hyperlinks[1:3])):
+        print "Collecting articles from journal {}/{}".format(
+                i+1, len(hyperlinks))
         article_details = get_article_details(
             journal=journal,
-            issue_hyperlink=h)
-        author_details.append(article_details)
+            issue_hyperlink=hyperlinks[i])
+        author_details.update(article_details)
     return author_details
 
 
@@ -110,7 +112,7 @@ def parse_address(soup):
 
 def parse_email(article_soup):
     article_str = str(article_soup)
-    k = re.search('mailto:(.*)"', article_str)
+    k = re.search('mailto:(.*)\"', article_str)
     if k is None:
         return None
     else:
@@ -121,9 +123,13 @@ def clean_hyperlink(hyperlink):
     link = hyperlink.split('"')[1]
     return link
 
-def flatten_frame(author_details):
+
+def flatten_author_details(author_details, email_only=False):
     d = []
     for k in author_details.keys():
         for a in author_details[k]:
-            d.append(a)
+            if email_only:
+                d.append(a['email'])
+            else:
+                d.append(a)
     return d
