@@ -161,8 +161,6 @@ class ScrapeWiley():
         for l in k:
             if 'rapid' in l.find("span", {"class": "meta__type"}).get_text().lower() or \
                 'article' in l.find("span", {"class": "meta__type"}).get_text().lower():
-                    raw_abstract = l.find("div", {"class": "article-section__content abstractlang_en main"})
-                    abstract = raw_abstract.get_text().strip().split('\n')[0]
                     doi_url = l.find("a", {"id": "publication_title"}).attrs['href']
                     raw_authors = l.find_all("span", {"class": "hlFld-ContribAuthor"})
                     authors = []
@@ -172,14 +170,22 @@ class ScrapeWiley():
                     author_details.append(
                         {
                             'title': l.find("a", {"id": "publication_title"}).get_text(),
-                            'abstract': abstract,
+                            'abstract': parse_abstract(search_page_soup=l),
                             'doiUrl': doi_url,
                             'authors': authors,
                             'articleDetails': article_details
                         })
-        return author_details                    
-                    
-                        
+        return author_details
+    
+
+    def parse_abstract(search_page_soup):
+        raw_abstract = search_page_soup.find("div", {"class": "article-section__content abstractlang_en main"})
+        if raw_abstract is not None:
+            return raw_abstract.get_text().strip().split('\n')[0]
+        else:
+            return None
+
+                
     def parse_author_info(page_soup):
         raw_author_infos = page_soup.find_all("div", {"class": "author-info accordion-tabbed__content"})
         for info in raw_author_infos:
