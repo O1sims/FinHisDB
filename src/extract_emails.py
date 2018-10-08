@@ -231,7 +231,12 @@ class ScrapeWiley():
 
 journal = 'journal of finance'
 author_details = []
-for i in range(100):
+for i in range(10):
+    print "Parsing search page {}".format(i)
     author_details += search_journal(journal, i)
 
-
+emails = []
+for details in author_details:
+    emails.append(details['articleDetails']['emails'])
+    
+    
