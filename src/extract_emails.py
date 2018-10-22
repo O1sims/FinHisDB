@@ -232,6 +232,132 @@ class ScrapeWiley():
         }
         return article_details
     
+<script type="application/json" data-iso-key="_0">
+
+BASE_URL = 'https://www.sciencedirect.com'
+
+import ast
+import json
+
+import json
+
+
+class ScrapeElsevier():
+    def init():
+        pass
+
+    def get_author_data(article_data):
+        data = []
+        for author in article_data["authors"]:
+            author_name = author['givenName'] + " " + author['surname']
+            if 'emails' in author.keys():
+                email = author['emails'][0]
+            else:
+                email = None
+            data.append({'authorName': author_name, 'email': email})
+        return data
+
+    def parse_abstract(hyperlink, journal):
+        url = BASE_URL + hyperlink
+        request_page = requests.get(
+                url=url,
+                headers={'User-Agent': USER_AGENT})
+        article_soup = BeautifulSoup(request_page.content, "lxml")
+        if journal == "journal-of-financial-economics":
+            for i in range(1,10):
+                para = "spara000{}".format(i)
+                abstract = article_soup.find("p", {"id": para})
+                if abstract is not None:
+                    return abstract.get_text().encode('utf-8')
+        elif journal == "international-review-of-economics-and-finance":
+            abstract = article_soup.find("p", {"id": "abspara0010"})
+            if abstract is not None:
+                return abstract.get_text().encode('utf-8')
+        return abstract
+
+    def parse_address(hyperlink, journal, institutions_only=False):
+        url = BASE_URL + hyperlink
+        request_page = requests.get(
+                url=url,
+                headers={'User-Agent': USER_AGENT})
+        article_soup = BeautifulSoup(request_page.content, "lxml")
+        raw_data = article_soup.find("script", {"type": "application/json"}).get_text().encode('utf-8')
+        sd = json.loads(raw_data)
+        affiliations_dict = sd['authors']['affiliations']
+        if institutions_only:
+            institutions = []
+            for v in affiliations_dict.itervalues():
+                l = len(v['$$']) - 1
+                if journal == "journal-of-financial-economics":
+                    institutions.append(v['$$'][l]['$$'][0]['_'])
+                elif journal == "international-review-of-economics-and-finance":
+                    institutions.append(v['$$'][0]['_'])
+            return institutions
+        else:
+            addresses = []
+            for v in affiliations_dict.itervalues():
+                l = max(len(v['$$']) - 2, 0)
+                addresses.append(v['$$'][l]['_'])
+        return addresses
+
+    def search_journal(journal):
+        issue_links = []
+        if journal == "journal-of-financial-economics":
+            for i in range(100,131):
+                for j in range(1,4):
+                    issue_links.append('/vol/{}/issue/{}'.format(i, j))
+        elif journal == "international-review-of-economics-and-finance":
+            for i in range(10, 22):
+                for j in range(1,5):
+                    issue_links.append('/vol/{}/issue/{}'.format(i, j))
+            for i in range(23, 58):
+                issue_links.append('/vol/{}/suppl/C'.format(i))
+        author_details = []
+        for link in issue_links:
+            issue_url = BASE_URL + '/journal/' + journal + link
+            issue_page = requests.get(
+                    url=issue_url,
+                    headers={'User-Agent': USER_AGENT})
+            issue_page_soup = BeautifulSoup(issue_page.content, "lxml")
+            raw_page_data = issue_page_soup.find("script", {"type": "application/json"}).get_text().encode('utf-8')
+            literal_page_data = ast.literal_eval(raw_page_data)
+            page_data = json.loads(literal_page_data)
+            if journal == "journal-of-financial-economics":
+                article_list = page_data['articles']['ihp']['data']['issueBody']['includeItem']
+                for article in article_list:
+                    if article['authors'] != []:
+                        author_detail = {
+                            'title': article['title'],
+                            'doiUrl': article['doi'],
+                            'authors': get_author_data(article_data=article),
+                            'abstract': parse_abstract(hyperlink=article['href']),
+                            'institutions': parse_address(
+                                    hyperlink=article['href'], institutions_only=True),
+                            'address': parse_address(hyperlink=article['href']),
+                            'hyperlink': "https://www.sciencedirect.com{}".format(article['href'])}
+                        author_details.append(author_detail)
+            elif journal == "international-review-of-economics-and-finance":
+                partial_dict = page_data['articles']['ihp']['data']['issueBody']
+                if 'issueSec' in partial_dict.keys():
+                    article_list = partial_dict['issueSec'][1]['includeItem']
+                else:
+                    article_list = partial_dict['includeItem']
+                for article in article_list:
+                    if article['authors'] != []:
+                        author_detail = {
+                            'title': article['title'],
+                            'doiUrl': article['doi'],
+                            'authors': get_author_data(article_data=article),
+                            'abstract': parse_abstract(
+                                    hyperlink=article['href'], journal=journal),
+                            'institutions': parse_address(
+                                    hyperlink=article['href'], journal=journal, institutions_only=True),
+                            'address': parse_address(
+                                    hyperlink=article['href'], journal=journal),
+                            'hyperlink': "https://www.sciencedirect.com{}".format(article['href'])}
+                        author_details.append(author_detail)
+        return author_details
+
 
 
 journal = 'journal of finance'
