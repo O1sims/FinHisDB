@@ -26,34 +26,57 @@ def search_journal(page):
         try:
             if 'rapid' in article_box.find("span", {"class": "meta__type"}).get_text().lower() or \
                             'article' in article_box.find("span", {"class": "meta__type"}).get_text().lower():
-                    doi_url = article_box.find("a", {"id": "publication_title"}).attrs['href']
-                    authors = []
-                    for author in article_box.find_all("span", {"class": "hlFld-ContribAuthor"}):
-                        authors.append(author.get_text().title())
-                        article_details = scrape_article(hyperlink=doi_url)
-                        author_details.append({
-                            'title': article_box.find("a", {"id": "publication_title"}).get_text(),
-                            'abstract': parse_abstract(search_page_soup=article_box),
-                            'doiUrl': doi_url,
-                            'authors': authors,
-                            'emails': article_details['emails'],
-                            'volume': article_details['volume'],
-                            'published': article_details['published'],
-                            'authorInfo': article_details['authorInfo'],
-                            'hyperlink': '{}{}'.format(BASE_URL, doi_url)
-                        })
-                    save_pickle(author_details=author_details)
+                doi_url = article_box.find("a", {"id": "publication_title"}).attrs['href']
+                authors = []
+                for author in article_box.find_all("span", {"class": "hlFld-ContribAuthor"}):
+                    authors.append(author.get_text().title())
+                article_details = scrape_article(hyperlink=doi_url)
+                author_details.append({
+                    'title': article_box.find("a", {"id": "publication_title"}).get_text(),
+                    'abstract': article_details['abstract'],
+                    'doiUrl': doi_url,
+                    'authors': authors,
+                    'emails': article_details['emails'],
+                    'volume': article_details['volume'],
+                    'published': article_details['published'],
+                    'authorInfo': article_details['authorInfo'],
+                    'hyperlink': '{}{}'.format(BASE_URL, doi_url)
+                })
         except AttributeError:
             print "Failure to parse an article in page {}!".format(page)
     return author_details
 
 
+def scrape_article(hyperlink):
+    url = '{}{}'.format(BASE_URL, hyperlink)
+    request_page = requests.get(
+            url=url,
+            headers={'User-Agent': USER_AGENT})
+    article_page_soup = BeautifulSoup(request_page.content, "lxml")
+    print "Parsing: {}".format(url)
+    article_details = {
+        'abstract': parse_abstract(search_page_soup=article_page_soup),
+        'authorInfo': parse_author_info(page_soup=article_page_soup),
+        'emails': parse_emails(page_soup=article_page_soup),
+        'volume': parse_volume_issue(page_soup=article_page_soup),
+        'published': parse_publication_date(page_soup=article_page_soup)
+    }
+    return article_details
+
+
 def parse_abstract(search_page_soup):
-    raw_abstract = search_page_soup.find("div", {"class": "article-section__content abstractlang_en main"})
-    if raw_abstract is not None:
-        return raw_abstract.get_text().strip().split('\n')[0]
-    else:
-        return None
+    abstract_classes = [
+        "article-section article-section__abstract",
+        "article-section__content abstractlang_en main",
+        "article-section__content en main"
+    ]
+    for abstract_class in abstract_classes:
+        raw_abstract = search_page_soup.find("div", {"class": abstract_class})
+        if raw_abstract is None:
+            continue
+        else:
+            return raw_abstract.get_text().strip()
+    return None
 
 
 def parse_author_info(page_soup):
@@ -99,7 +122,7 @@ def load_pickle():
         with open(data_file, 'rb') as f:
             return pickle.load(f)
     else:
-        return {}
+        return []
 
 
 def save_pickle(author_details):
@@ -110,24 +133,11 @@ def save_pickle(author_details):
                     protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def scrape_article(hyperlink):
-    url = '{}{}'.format(BASE_URL, hyperlink)
-    request_page = requests.get(
-            url=url,
-            headers={'User-Agent': USER_AGENT})
-    article_page_soup = BeautifulSoup(request_page.content, "lxml")
-    article_details = {
-        'authorInfo': parse_author_info(page_soup=article_page_soup),
-        'emails': parse_emails(page_soup=article_page_soup),
-        'volume': parse_volume_issue(page_soup=article_page_soup),
-        'published': parse_publication_date(page_soup=article_page_soup)
-    }
-    return article_details
-
-
 if __name__ == '__main__':
-    to_search_page = 50
-    for i in range(0, to_search_page):
+    to_search_page = 3
+    article_list = load_pickle()
+    for i in range(2, to_search_page):
         print "Parsing search page {}/{}".format(
             i, to_search_page - 1)
-        search_journal(i)
+        article_list += search_journal(i)
+        save_pickle(author_details=article_list)
