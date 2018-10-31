@@ -178,7 +178,7 @@ def save_pickle(author_details):
 
 
 if __name__ == '__main__':
-    article_details = []
+    article_details = load_pickle()
     issues_archive = parse_issues_archive()
     for volume in issues_archive:
         issue_list = parse_issues_list(year_url=volume)
@@ -187,3 +187,5 @@ if __name__ == '__main__':
             for article in article_list:
                 article_details.append(parse_article_details(
                     article_url=article))
+                save_pickle(author_details=article_details)
+
