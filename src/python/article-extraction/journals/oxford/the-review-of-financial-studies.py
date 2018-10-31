@@ -29,6 +29,9 @@ def parse_issues_archive():
 
 
 def parse_issues_list(year_url):
+    print "##### Parsing volume link: {}".format(
+        year_url)
+    
     issue_links = []
     request_page = requests.get(
         url=year_url,
@@ -43,21 +46,26 @@ def parse_issues_list(year_url):
 
 
 def get_article_list(issue_url):
+    print "### Parsing issue link: {}".format(
+        issue_url)
+    
     article_list = []
     request_page = requests.get(
         url=issue_url,
         headers={'User-Agent': USER_AGENT})
     article_soup = BeautifulSoup(request_page.content, "lxml")
-    print article_soup
-    raw_articles_list = article_soup.find("div", {"id": "resourceTypeList-OUP_Issue"})
-    articles_section = raw_articles_list.find_all("section")
+    raw_articles_list = article_soup.find("div", {"class": "section-container"})
+    articles_section = raw_articles_list.find_all("div", {"class": "al-article-item-wrap al-normal"})
     for article in articles_section:
         raw_article_info = article.find("div", {"class": "al-article-items"})
-        article_list.append({
-            'title': raw_article_info.find("h5", {"class": "customLink item-title"}).get_text().strip(),
-            'hyperlink': "https://academic.oup.com" + raw_article_info.find("a").attrs['href']
-        })
-    
+        a_title = raw_article_info.find("a")
+        if "editor's choice" not in a_title.get_text().lower():
+            article_list.append("https://academic.oup.com{}".format(
+                a_title.attrs['href']))
+        else:
+            continue
+    return article_list
+
 
 def parse_email(soup):
     match = re.findall(r'[\w\.-]+@[\w\.-]+', str(soup))
@@ -101,23 +109,44 @@ def parse_doi_url(article_soup):
     return doi_url
 
 
+def parse_abstract(article_soup):
+    abstract_classes = [
+        ["section", "astract"],
+        ["div", "widget widget-ArticleFulltext widget-instance-OUP_Abstract_Article_FullText_Widget"]
+    ]
+    for a_class in abstract_classes:
+        full_abstract = article_soup.find(a_class[0], {"class": a_class[0]})
+        if full_abstract is None:
+            continue
+        else:
+            if a_class[0] == "div":
+                return full_abstract("p")[1].get_text().strip()
+            else:
+                return full_abstract("p")[0].get_text().strip()
+
+
 def parse_metadata(article_soup):
     metadata_block = article_soup.find("div", {"class": "article-metadata"})
-    raw_metadata = metadata_block.find_all("a")
-    metadata = []
-    for data in raw_metadata:
-        metadata.append(data.get_text())
-    return metadata
+    if metadata_block is None:
+        return None
+    else:
+        raw_metadata = metadata_block.find_all("a")
+        metadata = []
+        for data in raw_metadata:
+            metadata.append(data.get_text())
+        return metadata
 
 
-def parse_artcle_details(article_url):
+def parse_article_details(article_url):
+    print "# Parsing article link: {}".format(
+        article_url)
+    
     request_page = requests.get(
         url=article_url,
         headers={'User-Agent': USER_AGENT})
     article_soup = BeautifulSoup(request_page.content, "lxml")
-    full_abstract = article_soup.find("section", {"class": "abstract"})
     article_details = {
-        'abstract': full_abstract("p")[0].get_text().strip(),
+        'abstract': parse_abstract(article_soup=article_soup),
         'authors': parse_authors(article_soup=article_soup),
         'title': parse_title(article_soup=article_soup),
         'doiUrl': parse_doi_url(article_soup=article_soup),
@@ -149,9 +178,12 @@ def save_pickle(author_details):
 
 
 if __name__ == '__main__':
+    article_details = []
     issues_archive = parse_issues_archive()
     for volume in issues_archive:
         issue_list = parse_issues_list(year_url=volume)
         for issue in issue_list:
             article_list = get_article_list(issue_url=issue)
-    
+            for article in article_list:
+                article_details.append(parse_article_details(
+                    article_url=article))
